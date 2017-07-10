@@ -1,0 +1,53 @@
+
+
+Description of mem_tracer pin tool
+
+Pin version used: 3.2.x
+
+1. mem_tracer.cpp
+
+
+The mem_tracer.cpp code contains the instrumentation functions of the mem_tracer pin tool.
+The instrumentation functionality of the code simply inserts the appropriate instrumentation function call for each type of memory access (instruction, memory read, and memory write).
+The tool is also able to identify the thread performing the access. 
+The tool keeps one map structure per thread, for each type of memory access, and a period counter.
+The instrumentation functions use these maps to keep track of the memory access count for each page.
+Once the period counter reaches 16384 (which can be changed by the user with a simple define), the information contained in the memory maps of that thread is
+printed to the thread trace.
+
+We used 32 threads for our parallel experiments in a machine with 32 physical cores, and thus established 32 trace files.
+Applications which use a single thread will generate one trace with information (thread 0), and 31 empty traces.
+The user is able to change the number of threads in the define section.
+
+
+2. run.sh 
+
+Usage: ./run.sh "application"
+Output: mem_trace_*.out, where * ranges from 0 to number of threads
+
+A wrapper script for the pin-tool.
+It compiles the pin-tool if necessary, and then uses it for "application".
+
+
+3. sample_scr.sh
+
+Usage: ./sample_scr.sh "application" "trace_prefix" sample_size
+Output: several memory traces named "trace_prefix"-err_*-thread-?, where "*" ranges from 0 to (number of threads - 1), and "?" ranges from 0 to (sample_size - 1)
+
+
+
+A simple script that uses the wrapper "run.sh" to generate traces
+for a sample of bitflips. It expects files "sample_serror_BYTES" and "sample_serror_BITS" to exist, formatted with one decimal number per line each.
+The file "sample_serror_BYTES" contains the byte offset in the .text section, the file "sample_serror_BITS" contains the bit (i.e. this file will only contain values in the {0..7} range).
+
+The traces generated contain aggregations for memory periods of 16384 memory accesses.
+Each line contains, for 1 period: #reads, #pages read, #writes, #pages written, #instructions, #instruction pages.
+This value can be changed in the define macro AGGPERIOD.
+The script will create traces for #sample_size executions, where each execution randomly uses a bit from the silent error files "sample_serror_BYTES" and "sample_serror_BITS".
+
+
+
+
+
+
+
