@@ -4,7 +4,7 @@ Generating bitflips
 
 1. generr.sh
 
-Usage: ./generr.sh "target_binary"
+Usage: ./generr.sh "target_binary" #threads "program args"
 
 Outputs: hackout, interesting_errors, "target_binary"_error_BYTES, "target_binary"_error_BITS
 
@@ -17,30 +17,31 @@ that the output will be different from a regular execution.
 The files interesting_errors and hackout are used for output.
 Any interesting errors will have the byte and bit output to "interesting_errors".
 Any completed execution will output the return code to "hackout".
-"hackout" is used by the watchdog.sh script to control completed executions.
 
 The script will likely generate many hanging executions, due to infinite loops or syscalls performed incorrectly.
-To handle this automatically, the secondary script "watchdog.sh" kills the processes periodically. We do not use
-the "timeout" command since it will change the pipestatus (there might be a better way to do this). The user may want to change this in the script.
+To handle this automatically, we use the "timeout" command (with --preserve-status option to preserve pipestatus).
 It is particularly dangerous to flip bits of syscalls, especially in programs which use fork. Fork bombs, threads
 which do not end, etc. may happen. Thus, it is advisable to manually insert ranges of bytes to flip.
+
 To find interesting ranges, we advise to first look at the application code and identify kernel functions, use objdump -d "binary" and look at the offset
 of such functions, and then run a limited search for silent errors in the range of the function. 
 MiBench presented no worrisome anomalies regarding syscalls when doing full searches for silent errors,
 but NPB demanded a few reboots, and narrowing the search space to kernel functions.
 
-The script assumes no inputs, and the user might have to insert inputs manually or change the script to support inputs for the executables.
-Since MiBench requires several arguments for its benchmarks, we chose to create multiple copies of this script, each tailored for each benchmark.
+The script receives number of threads and additinal args as inputs.
+However, since MiBench requires several arguments for its benchmarks, we chose to create multiple copies of this script, each tailored for each benchmark.
+New users might have to do that as well, due to the several arguments and output modes needed for MiBench applications.
 
 The user must manually remove/clean the output files before a new execution. Optionally, he may change the script to use a new name for the output files.
 
-2. watchdog.sh
 
-Usage: ./watchdog.sh "time"
+#2. watchdog.sh DEPRECATED (replaced by timeout with --preserve-status)
 
-The watchdog.sh script is used to kill hanging executions that will arise due to bitflips causing undefined behavior in control instructions,
-such as infinite loops. "time" (in seconds) is used to control how long each execution has to complete, and it is up to the user to define acceptable times for 
-the execution of the bitflipped binaries. The script itself simply compares the number of completed outputs in the "hackout" file every "time" seconds, and
-if no new execution has been completed, sends a kill -9 signal to all hackbin instances. It is important to do a "killall" here since we do not know how many
-processes might have spawned due to multithreaded applications or syscalls spawning more processes.
+#Usage: ./watchdog.sh "time"
+
+#The watchdog.sh script is used to kill hanging executions that will arise due to bitflips causing undefined behavior in control instructions,
+#such as infinite loops. "time" (in seconds) is used to control how long each execution has to complete, and it is up to the user to define acceptable times for 
+#the execution of the bitflipped binaries. The script itself simply compares the number of completed outputs in the "hackout" file every "time" seconds, and
+#if no new execution has been completed, sends a kill -9 signal to all hackbin instances. It is important to do a "killall" here since we do not know how many
+#processes might have spawned due to multithreaded applications or syscalls spawning more processes.
 
