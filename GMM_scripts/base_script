@@ -1,0 +1,79 @@
+import math
+import numpy as np
+from sklearn import mixture
+import glob
+
+obs1 = np.fromfile('/home/fbmoreira/traces/NPB/base/sp-trace-1-thread-0', int, -1, ' ')
+baseobs = obs1
+obs2 = np.fromfile('/home/fbmoreira/traces/NPB/base/sp-trace-10-thread-0', int, -1, ' ')
+baseobs = np.append(baseobs, obs2)
+obs3 = np.fromfile('/home/fbmoreira/traces/NPB/base/sp-trace-seq-thread-0', int, -1, ' ')
+baseobs = np.append(baseobs, obs3)
+
+
+baseobs = np.reshape(baseobs, (-1, 6))
+g = mixture.GMM(n_components=10, covariance_type='full')
+g.fit(baseobs)
+seqarray1 = g.predict(baseobs)
+markovchain = np.zeros(100) 
+markovchain = np.reshape(markovchain, (10, 10))
+prev = seqarray1[0]
+for i in range(1, np.shape(seqarray1)[0] - 1):
+  markovchain[prev][seqarray1[i]] = markovchain[prev][seqarray1[i]] + 1
+  prev = seqarray1[i]
+
+for i in range(0, np.shape(markovchain)[0]):
+  if np.sum(markovchain[i] > 0):
+    markovchain[i] /= np.sum(markovchain[i])
+
+#loops over all of the same, generating metrics
+outf = open("SP_thread0_10full", "w")
+path = "/home/fbmoreira/FullMem/SP_err_*-thread-0"
+for fname in glob.glob(path):
+  #print(fname)
+  file = np.fromfile(fname, int, -1, ' ')
+  fobs = np.reshape(file, (-1, 6))
+  seqf = g.predict(fobs)
+  newmat = np.zeros(100)
+  newmat = np.reshape(newmat, (10,10))
+  unidentified = 0.0
+  identified = 0.0
+  prev = seqf[0]
+  ###create target markov-chain
+  for i in range(1, np.shape(seqf)[0] - 1):
+    id = seqf[i]
+    newmat[prev][id] = newmat[prev][id] + 1
+    if (math.isnan(markovchain[prev][id])) or (markovchain[prev][id] == 0):
+      unidentified = unidentified + 1
+    else:
+      identified = identified + 1
+    prev = seqf[i]
+  ###simplemarkov diff 
+  diffmat = np.zeros(100)
+  diffmat = np.reshape(diffmat, (10,10))
+  for i in range(0, np.shape(newmat)[0]):
+	if (np.sum(newmat[i]) != 0):
+		newmat[i] /= np.sum(newmat[i])
+  diffmat = markovchain - newmat 
+  diffmat = np.absolute(diffmat)
+  tdiff = 0
+  for i in range(0,10):
+    tdiff = tdiff + np.sum(diffmat[i])
+  bz = 0.0
+  for i in range(0,10):
+    for k in range(0,10): 
+      if (newmat[i][k] > 0):
+        bz = bz + 1
+  sparsity = bz/100
+  tsum = 0.0
+  bsum = 0.0
+  for k in range(0, 10):
+    tsum = tsum + newmat[k][k]
+    bsum = bsum + markovchain[k][k]
+  trace = math.fabs(tsum - bsum)
+  rank = math.fabs(np.linalg.matrix_rank(newmat) - np.linalg.matrix_rank(markovchain))
+  unidratio = unidentified / (unidentified + identified)
+  strout = "{0},{1},{2},{3},{4},{5}\n".format(fname, tdiff, unidratio, trace, rank, sparsity)
+  strout = str(strout)
+  outf.write(strout)
+
